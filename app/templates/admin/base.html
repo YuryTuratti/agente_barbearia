@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ page_title }} - Área do barbeiro</title>
+    <style>{{ admin_css }}</style>
+  </head>
+  <body>
+    <div class="admin-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <strong>Área do barbeiro</strong>
+          <span>{{ barbershop_timezone }}</span>
+        </div>
+        <nav class="nav" aria-label="Navegação administrativa">
+          {{ admin_nav }}
+        </nav>
+      </aside>
+      <main class="main">
+        <header class="page-header">
+          <div>
+            <h1>{{ page_title }}</h1>
+            <p>Painel administrativo somente leitura</p>
+          </div>
+          <span class="badge">faturamento estimado</span>
+        </header>
+        {{ admin_content }}
+      </main>
+    </div>
+    <script>
+      const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+      const cents = (value) => money.format((value || 0) / 100);
+      const percent = (value) => value === null || value === undefined ? "sem base anterior" : `${Number(value).toFixed(2)}%`;
+      const byId = (id) => document.getElementById(id);
+      const setText = (id, value) => { const target = byId(id); if (target) target.textContent = value; };
+      const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
+      const renderRows = (id, data, empty, render) => {
+        const target = byId(id);
+        if (!target) return;
+        target.innerHTML = data.length ? data.map(render).join("") : empty;
+      };
+      const statusBadge = (status) => `<span class="status ${escapeHtml(status)}">${escapeHtml(status)}</span>`;
+      const bar = (value, max) => `<span class="bar"><i style="width:${max > 0 ? Math.max(4, (value / max) * 100) : 0}%"></i></span>`;
+    </script>
+  </body>
+</html>

@@ -1,0 +1,11 @@
+.venv/
+venv/
+.env
+.env.production
+__pycache__/
+*.py[cod]
+.vscode/
+.idea/
+.pytest_cache/
+*.log
+backups/

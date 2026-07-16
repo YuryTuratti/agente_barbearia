@@ -1,0 +1,46 @@
+<section class="cards overview-cards" aria-label="Resumo administrativo">
+  <a class="card clickable-card" href="/admin/agenda"><span>Agenda de hoje</span><strong id="today-count">0</strong></a>
+  <a class="card clickable-card" href="/admin/agenda"><span>Agendamentos do mês</span><strong id="appointments-month">0</strong></a>
+  <a class="card clickable-card" href="/admin/faturamento"><span>Faturamento estimado</span><strong id="revenue-month">R$ 0,00</strong></a>
+  <a class="card clickable-card" href="/admin/servicos"><span>Serviço mais agendado</span><strong id="most-booked">sem dados</strong></a>
+  <a class="card clickable-card" href="/admin/servicos"><span>Serviço menos agendado</span><strong id="least-booked">sem dados</strong></a>
+  <a class="card clickable-card" href="/admin/clientes"><span>Clientes únicos</span><strong id="unique-clients">0</strong></a>
+  <a class="card clickable-card" href="/admin/cancelamentos"><span>Cancelamentos</span><strong id="cancelled-month">0</strong></a>
+  <a class="card clickable-card" href="/admin/cancelamentos"><span>No-show</span><strong id="no-show-month">0</strong></a>
+  <a class="card clickable-card" href="/admin/horarios"><span>Horários movimentados</span><strong id="busy-hour">sem dados</strong></a>
+  <a class="card clickable-card" href="/admin/horarios"><span>Ocupação estimada</span><strong id="occupancy">sem base</strong></a>
+</section>
+
+<section class="grid two-columns">
+  <article class="panel">
+    <h2>Comparação com mês passado</h2>
+    <p class="muted" id="month-comparison">Ainda não há dados suficientes para comparar com o mês anterior.</p>
+  </article>
+  <article class="panel">
+    <h2>Próximos passos</h2>
+    <p class="muted">Use o menu para abrir janelas detalhadas. Esta versão é somente leitura.</p>
+  </article>
+</section>
+
+<script>
+  async function loadOverview() {
+    const [summary, ranking, busy, appointments] = await Promise.all([
+      fetch("/admin/api/dashboard-summary").then((response) => response.json()),
+      fetch("/admin/api/services-ranking").then((response) => response.json()),
+      fetch("/admin/api/busy-hours").then((response) => response.json()),
+      fetch("/admin/api/appointments?status=all").then((response) => response.json())
+    ]);
+    setText("today-count", appointments.appointments.length);
+    setText("appointments-month", summary.appointments.scheduled_this_month);
+    setText("revenue-month", cents(summary.revenue.estimated_this_month_cents));
+    setText("most-booked", ranking.most_booked[0]?.service_name || "sem dados");
+    setText("least-booked", ranking.least_booked[0]?.service_name || "sem dados");
+    setText("unique-clients", summary.clients.unique_clients_this_month);
+    setText("cancelled-month", summary.appointments.cancelled_this_month);
+    setText("no-show-month", summary.appointments.no_show_this_month);
+    setText("busy-hour", busy[0] ? `${busy[0].hour} (${busy[0].appointments})` : "sem dados");
+    setText("occupancy", summary.occupancy.occupancy_percent === null ? "sem base" : `${summary.occupancy.occupancy_percent.toFixed(2)}%`);
+    setText("month-comparison", summary.appointments.growth_percent === null ? "Ainda não há dados suficientes para comparar com o mês anterior." : `${percent(summary.appointments.growth_percent)} em agendamentos no mês atual.`);
+  }
+  loadOverview().catch(() => {});
+</script>

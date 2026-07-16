@@ -1,0 +1,32 @@
+<section class="notice">Os valores são estimativas com base nos agendamentos. O sistema ainda não valida pagamentos recebidos.</section>
+
+<section class="panel"><label>Barbeiro <select id="revenue-barber" onchange="loadRevenue()"><option value="all">Todos</option><option value="main">Lucas</option><option value="daniel">Daniel</option></select></label></section>
+<section class="cards">
+  <article class="card"><span>Mês atual</span><strong id="revenue-current">R$ 0,00</strong></article>
+  <article class="card"><span>Mês anterior</span><strong id="revenue-previous">R$ 0,00</strong></article>
+  <article class="card"><span>Diferença</span><strong id="revenue-difference">R$ 0,00</strong></article>
+  <article class="card"><span>Percentual</span><strong id="revenue-percent">sem base anterior</strong></article>
+  <article class="card"><span>Ticket médio estimado</span><strong id="ticket-average">sem dados</strong></article>
+  <article class="card"><span>Agendamentos considerados</span><strong id="considered-appointments">0</strong></article>
+</section>
+
+<section class="panel">
+  <h2>Faturamento estimado por serviço</h2>
+  <div id="revenue-services" class="stack empty">Nenhum agendamento encontrado para esse período.</div>
+</section>
+
+<script>
+  async function loadRevenue() {
+    const payload = await fetch(`/admin/api/revenue?resource_key=${byId("revenue-barber").value}`).then((response) => response.json());
+    setText("revenue-current", cents(payload.current_month.estimated_revenue_cents));
+    setText("revenue-previous", cents(payload.previous_month.estimated_revenue_cents));
+    setText("revenue-difference", cents(payload.difference.estimated_revenue_cents));
+    setText("revenue-percent", percent(payload.difference.estimated_revenue_percent));
+    setText("ticket-average", payload.ticket_average_cents === null ? "sem dados" : cents(payload.ticket_average_cents));
+    setText("considered-appointments", payload.considered_appointments);
+    const max = Math.max(0, ...payload.by_service.map((item) => item.estimated_revenue_cents));
+    byId("revenue-services").classList.toggle("empty", payload.by_service.length === 0);
+    byId("revenue-services").innerHTML = payload.by_service.length ? payload.by_service.map((item) => `<div class="ranking-line"><div><strong>${escapeHtml(item.service_name)}</strong><span>${item.appointments} agendamentos · ${cents(item.estimated_revenue_cents)}</span></div>${bar(item.estimated_revenue_cents, max)}</div>`).join("") : "Nenhum agendamento encontrado para esse período.";
+  }
+  loadRevenue().catch(() => {});
+</script>

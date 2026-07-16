@@ -1,0 +1,51 @@
+<section class="grid two-columns">
+  <article class="panel">
+    <h2>Dados públicos</h2>
+    <dl class="details">
+      <dt>Nome público</dt><dd id="public-name">O Original Barbershop</dd>
+      <dt>Endereço</dt><dd id="address">carregando</dd>
+      <dt>Google Maps</dt><dd id="maps-link">carregando</dd>
+      <dt>Tolerância de atraso</dt><dd id="delay-tolerance">carregando</dd>
+      <dt>Política de cancelamento</dt><dd id="cancellation-policy">carregando</dd>
+    </dl>
+  </article>
+  <article class="panel">
+    <h2>Pagamentos e pendências</h2>
+    <div id="payment-methods" class="pill-list"></div>
+    <h3>Pendências comerciais</h3>
+    <ul id="pending-items" class="simple-list"></ul>
+  </article>
+</section>
+
+<section class="grid two-columns">
+  <article class="panel">
+    <h2>Horários de funcionamento</h2>
+    <div id="business-hours" class="stack"></div>
+  </article>
+  <article class="panel">
+    <h2>Combo promocional</h2>
+    <div id="promotion" class="mini-card"></div>
+  </article>
+</section>
+
+<section class="panel">
+  <h2>Serviços e preços</h2>
+  <div id="settings-services" class="catalog-grid"></div>
+</section>
+
+<script>
+  async function loadSettings() {
+    const payload = await fetch("/admin/api/barbershop-settings").then((response) => response.json());
+    setText("public-name", payload.public_name);
+    setText("address", payload.address || "não informado");
+    byId("maps-link").innerHTML = payload.google_maps_url ? `<a href="${escapeHtml(payload.google_maps_url)}" rel="noreferrer">Abrir mapa</a>` : "não informado";
+    setText("delay-tolerance", payload.delay_tolerance);
+    setText("cancellation-policy", payload.cancellation_policy);
+    byId("payment-methods").innerHTML = payload.payment_methods.map((item) => `<span class="pill">${escapeHtml(item)}</span>`).join("");
+    byId("pending-items").innerHTML = payload.pending_items.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+    byId("business-hours").innerHTML = payload.business_hours.map((item) => `<div class="ranking-line"><div><strong>${escapeHtml(item.label)}</strong><span>${item.opens_at} às ${item.closes_at}</span></div></div>`).join("");
+    byId("promotion").innerHTML = payload.promotion ? `<strong>${escapeHtml(payload.promotion.name)}</strong><span>${payload.promotion.estimated_duration_minutes} min · ${cents(payload.promotion.price_cents)}</span><span>${escapeHtml(payload.promotion.pending_note || "")}</span>` : "Sem combo cadastrado.";
+    byId("settings-services").innerHTML = payload.services.map((service) => `<article class="mini-card"><strong>${escapeHtml(service.name)}</strong><span>${service.duration_minutes} min · ${cents(service.price_cents)}</span><span>${service.requires_quote ? "exige avaliação" : "preço direto"} · ${service.price_type === "starting_at" ? "preço inicial" : service.price_type}</span></article>`).join("");
+  }
+  loadSettings().catch(() => {});
+</script>

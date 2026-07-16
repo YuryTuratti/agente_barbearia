@@ -1,0 +1,152 @@
+{
+  "name": "O Original Barbershop",
+  "payment_methods": [
+    {
+      "key": "cash",
+      "display_name": "Dinheiro"
+    },
+    {
+      "key": "credit_card",
+      "display_name": "Cartão de crédito"
+    },
+    {
+      "key": "debit_card",
+      "display_name": "Cartão de débito"
+    },
+    {
+      "key": "pix",
+      "display_name": "PIX"
+    }
+  ],
+  "payment_methods_configured": true,
+  "payment_methods_raw_answer": "Todas a cima",
+  "payment_methods_pending_note": null,
+  "address": {
+    "street": "Avenida Braulino Martins Mundim, 1040 - Centro",
+    "city": null,
+    "postal_code": null,
+    "google_maps_url": "https://maps.app.goo.gl/zynRMCNb19d2hqn58"
+  },
+  "resources": [
+    {"resource_key": "main", "display_name": "Lucas", "is_active": true, "booking_enabled": true, "sort_order": 1},
+    {"resource_key": "daniel", "display_name": "Daniel", "is_active": true, "booking_enabled": true, "sort_order": 2}
+  ],
+  "business_hours": [
+    {
+      "weekday": 1,
+      "opens_at": "10:00",
+      "closes_at": "20:00"
+    },
+    {
+      "weekday": 2,
+      "opens_at": "10:00",
+      "closes_at": "20:00"
+    },
+    {
+      "weekday": 3,
+      "opens_at": "10:00",
+      "closes_at": "20:00"
+    },
+    {
+      "weekday": 4,
+      "opens_at": "08:00",
+      "closes_at": "20:00"
+    },
+    {
+      "weekday": 5,
+      "opens_at": "08:00",
+      "closes_at": "16:00"
+    }
+  ],
+  "resource_business_hours": {
+    "daniel": [
+      {"weekday": 0, "opens_at": "09:00", "closes_at": "12:00"},
+      {"weekday": 0, "opens_at": "13:00", "closes_at": "20:00"},
+      {"weekday": 2, "opens_at": "09:00", "closes_at": "12:00"},
+      {"weekday": 2, "opens_at": "13:00", "closes_at": "20:00"},
+      {"weekday": 3, "opens_at": "09:00", "closes_at": "12:00"},
+      {"weekday": 3, "opens_at": "13:00", "closes_at": "20:00"},
+      {"weekday": 4, "opens_at": "09:00", "closes_at": "12:00"},
+      {"weekday": 4, "opens_at": "13:00", "closes_at": "20:00"},
+      {"weekday": 5, "opens_at": "09:00", "closes_at": "12:00"},
+      {"weekday": 5, "opens_at": "13:00", "closes_at": "18:00"}
+    ]
+  },
+  "services": [
+    {
+      "slug": "corte-social",
+      "name": "Corte Social",
+      "duration_minutes": 30,
+      "price_cents": 3000,
+      "active": true,
+      "booking_enabled": true
+    },
+    {
+      "slug": "corte-degrade",
+      "name": "Corte Degradê",
+      "duration_minutes": 30,
+      "price_cents": 4000,
+      "active": true,
+      "booking_enabled": true
+    },
+    {
+      "slug": "corte-militar",
+      "name": "Corte Militar",
+      "duration_minutes": 30,
+      "price_cents": 3000,
+      "active": true,
+      "booking_enabled": true
+    },
+    {
+      "slug": "barba-alinhamento",
+      "name": "Barba - Alinhamento",
+      "duration_minutes": 30,
+      "price_cents": 2000,
+      "active": true,
+      "booking_enabled": true
+    },
+    {
+      "slug": "barboterapia",
+      "name": "Barba Completa com Toalha Quente / Barboterapia",
+      "duration_minutes": 30,
+      "price_cents": 3500,
+      "active": true,
+      "booking_enabled": true
+    },
+    {
+      "slug": "sobrancelha",
+      "name": "Sobrancelha",
+      "duration_minutes": 30,
+      "price_cents": 1000,
+      "active": true,
+      "booking_enabled": true
+    },
+    {
+      "slug": "pigmentacao-barba-cabelo",
+      "name": "Pigmentação de Barba ou Cabelo",
+      "duration_minutes": 90,
+      "price_cents": 1500,
+      "active": true,
+      "booking_enabled": true,
+      "price_type": "per_unit",
+      "requires_quote": false
+    },
+    {
+      "slug": "platinado-luzes",
+      "name": "Platinado / Luzes",
+      "duration_minutes": 90,
+      "price_cents": 15000,
+      "active": true,
+      "booking_enabled": true,
+      "price_type": "starting_at",
+      "requires_quote": true
+    }
+  ],
+  "promotion": {
+    "name": "Corte + Barba + Sobrancelha",
+    "price_cents": 6000,
+    "estimated_duration_minutes": 90,
+    "booking_enabled": false,
+    "pending_note": "O combo ainda precisa ter as modalidades de corte confirmadas."
+  }
+}

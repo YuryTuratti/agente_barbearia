@@ -1,0 +1,42 @@
+<section class="panel"><label>Barbeiro <select id="cancellations-barber" onchange="loadCancellations()"><option value="all">Todos</option><option value="main">Lucas</option><option value="daniel">Daniel</option></select></label></section>
+<section class="cards">
+  <article class="card"><span>Cancelamentos do mês</span><strong id="cancelled-current">0</strong></article>
+  <article class="card"><span>Cancelamentos do mês anterior</span><strong id="cancelled-previous">0</strong></article>
+  <article class="card"><span>No-shows do mês</span><strong id="no-show-current">0</strong></article>
+  <article class="card"><span>Taxa de cancelamento</span><strong id="cancel-rate">sem base</strong></article>
+</section>
+
+<section class="panel">
+  <h2>Cancelamentos recentes</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Horário</th>
+          <th>Barbeiro</th>
+          <th>Cliente</th>
+          <th>Telefone</th>
+          <th>Serviço</th>
+          <th>Status</th>
+          <th>Motivo</th>
+        </tr>
+      </thead>
+      <tbody id="cancellations-table">
+        <tr><td colspan="8">Nenhum cancelamento encontrado.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<script>
+  async function loadCancellations() {
+    const payload = await fetch(`/admin/api/cancellations?resource_key=${byId("cancellations-barber").value}`).then((response) => response.json());
+    setText("cancelled-current", payload.cancelled_this_month);
+    setText("cancelled-previous", payload.cancelled_previous_month);
+    setText("no-show-current", payload.no_show_this_month);
+    setText("cancel-rate", payload.cancellation_rate_percent === null ? "sem base" : `${payload.cancellation_rate_percent.toFixed(2)}%`);
+    renderRows("cancellations-table", payload.recent, '<tr><td colspan="8">Nenhum cancelamento encontrado.</td></tr>', (item) => `<tr><td>${item.date}</td><td>${item.time}</td><td>${escapeHtml(item.barber_name)}</td><td>${escapeHtml(item.customer_name)}</td><td>${escapeHtml(item.phone_masked)}</td><td>${escapeHtml(item.services.join(", "))}</td><td>${statusBadge(item.status)}</td><td>${escapeHtml(item.reason || "sem motivo informado")}</td></tr>`);
+  }
+  loadCancellations().catch(() => {});
+</script>

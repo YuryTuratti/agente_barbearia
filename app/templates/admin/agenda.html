@@ -1,0 +1,70 @@
+<section class="panel">
+  <form class="filters" id="agenda-filters">
+    <label>Data <input id="agenda-date" name="date" type="date"></label>
+    <label>Status
+      <select id="agenda-status" name="status">
+        <option value="scheduled">Agendados</option>
+        <option value="completed">Concluídos</option>
+        <option value="cancelled">Cancelados</option>
+        <option value="no_show">No-show</option>
+        <option value="all">Todos</option>
+      </select>
+    </label>
+    <label>Barbeiro <select id="agenda-barber"><option value="all">Todos</option><option value="main">Lucas</option><option value="daniel">Daniel</option></select></label>
+    <button type="submit">Filtrar</button>
+    <button type="button" id="today-shortcut">Hoje</button>
+    <button type="button" id="tomorrow-shortcut">Amanhã</button>
+    <button type="button" id="all-shortcut">Ver todos do dia</button>
+  </form>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Início</th>
+          <th>Fim</th>
+          <th>Barbeiro</th>
+          <th>Cliente</th>
+          <th>Telefone</th>
+          <th>Serviços</th>
+          <th>Status</th>
+          <th>Código</th>
+          <th>Duração</th>
+          <th>Valor estimado</th>
+        </tr>
+      </thead>
+      <tbody id="agenda-table">
+        <tr><td colspan="9">Nenhum agendamento encontrado para esse período.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<script>
+  const query = new URLSearchParams(location.search);
+  if (query.get("date")) byId("agenda-date").value = query.get("date");
+  byId("agenda-status").value = query.get("status") || "scheduled";
+
+  function isoDate(offset) {
+    const date = new Date();
+    date.setDate(date.getDate() + offset);
+    return date.toISOString().slice(0, 10);
+  }
+
+  async function loadAgenda() {
+    const date = byId("agenda-date").value;
+    const status = byId("agenda-status").value;
+    const params = new URLSearchParams({ status, resource_key: byId("agenda-barber").value });
+    if (date) params.set("date", date);
+    const payload = await fetch(`/admin/api/appointments?${params}`).then((response) => response.json());
+    renderRows("agenda-table", payload.appointments, '<tr><td colspan="9">Nenhum agendamento encontrado para esse período.</td></tr>', (item) => {
+      const services = item.services.map((service) => escapeHtml(service.name)).join(", ");
+      return `<tr><td>${item.start_time}</td><td>${item.end_time}</td><td>${escapeHtml(item.barber_name)}</td><td>${escapeHtml(item.customer_name)}</td><td>${escapeHtml(item.phone_masked)}</td><td>${services}</td><td>${statusBadge(item.status)}</td><td>${escapeHtml(item.confirmation_code)}</td><td>${item.total_duration_minutes} min</td><td>${cents(item.total_price_cents)}</td></tr>`;
+    });
+  }
+
+  byId("agenda-filters").addEventListener("submit", (event) => { event.preventDefault(); loadAgenda(); });
+  byId("today-shortcut").addEventListener("click", () => { byId("agenda-date").value = isoDate(0); loadAgenda(); });
+  byId("tomorrow-shortcut").addEventListener("click", () => { byId("agenda-date").value = isoDate(1); loadAgenda(); });
+  byId("all-shortcut").addEventListener("click", () => { byId("agenda-status").value = "all"; loadAgenda(); });
+  loadAgenda().catch(() => {});
+</script>

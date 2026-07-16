@@ -1,0 +1,36 @@
+<section class="cards">
+  <article class="card"><span>Clientes únicos no mês</span><strong id="clients-current">0</strong></article>
+  <article class="card"><span>Clientes únicos no mês anterior</span><strong id="clients-previous">0</strong></article>
+  <article class="card"><span>Clientes recorrentes</span><strong id="clients-recurring">0</strong></article>
+</section>
+
+<section class="panel">
+  <h2>Clientes com mais agendamentos</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Cliente</th>
+          <th>Telefone</th>
+          <th>Agendamentos</th>
+          <th>Último agendamento</th>
+          <th>Próximo agendamento</th>
+        </tr>
+      </thead>
+      <tbody id="clients-table">
+        <tr><td colspan="5">Nenhum agendamento encontrado para esse período.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<script>
+  async function loadClients() {
+    const payload = await fetch("/admin/api/clients").then((response) => response.json());
+    setText("clients-current", payload.unique_clients_this_month);
+    setText("clients-previous", payload.unique_clients_previous_month);
+    setText("clients-recurring", payload.recurring_clients);
+    renderRows("clients-table", payload.top_clients, '<tr><td colspan="5">Nenhum agendamento encontrado para esse período.</td></tr>', (item) => `<tr><td>${escapeHtml(item.customer_name)}</td><td>${escapeHtml(item.phone_masked)}</td><td>${item.appointments}</td><td>${escapeHtml(item.last_appointment || "sem dados")}</td><td>${escapeHtml(item.next_appointment || "sem agenda futura")}</td></tr>`);
+  }
+  loadClients().catch(() => {});
+</script>

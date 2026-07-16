@@ -1,0 +1,53 @@
+<section class="panel">
+  <form class="filters" id="services-filters">
+    <label>Período
+      <select id="services-period">
+        <option value="current_month">Mês atual</option>
+        <option value="previous_month">Mês anterior</option>
+        <option value="last_90_days">Últimos 90 dias</option>
+      </select>
+    </label>
+    <label>Barbeiro <select id="services-barber"><option value="all">Todos</option><option value="main">Lucas</option><option value="daniel">Daniel</option></select></label>
+    <button type="submit">Atualizar</button>
+  </form>
+</section>
+
+<section class="grid two-columns">
+  <article class="panel">
+    <h2>Mais agendados</h2>
+    <div id="most-services" class="stack empty">Nenhum agendamento encontrado para esse período.</div>
+  </article>
+  <article class="panel">
+    <h2>Menos agendados</h2>
+    <div id="least-services" class="stack empty">Nenhum agendamento encontrado para esse período.</div>
+  </article>
+</section>
+
+<section class="panel">
+  <h2>Catálogo ativo</h2>
+  <div id="catalog-services" class="catalog-grid"></div>
+</section>
+
+<script>
+  function serviceLine(item, max) {
+    return `<div class="ranking-line"><div><strong>${escapeHtml(item.service_name)}</strong><span>${item.count} agendamentos · ${cents(item.estimated_revenue_cents)} · média ${item.average_duration_minutes || 0} min</span></div>${bar(item.count, max)}</div>`;
+  }
+
+  async function loadServices() {
+    const period = byId("services-period").value;
+    const [ranking, settings] = await Promise.all([
+      fetch(`/admin/api/services-ranking?period=${period}&limit=20&resource_key=${byId("services-barber").value}`).then((response) => response.json()),
+      fetch("/admin/api/barbershop-settings").then((response) => response.json())
+    ]);
+    const maxMost = Math.max(0, ...ranking.most_booked.map((item) => item.count));
+    const maxLeast = Math.max(0, ...ranking.least_booked.map((item) => item.count));
+    byId("most-services").classList.toggle("empty", ranking.most_booked.length === 0);
+    byId("least-services").classList.toggle("empty", ranking.least_booked.length === 0);
+    byId("most-services").innerHTML = ranking.most_booked.length ? ranking.most_booked.map((item) => serviceLine(item, maxMost)).join("") : "Nenhum agendamento encontrado para esse período.";
+    byId("least-services").innerHTML = ranking.least_booked.length ? ranking.least_booked.map((item) => serviceLine(item, maxLeast)).join("") : "Nenhum agendamento encontrado para esse período.";
+    byId("catalog-services").innerHTML = settings.services.map((service) => `<article class="mini-card"><strong>${escapeHtml(service.name)}</strong><span>${service.duration_minutes} min · ${cents(service.price_cents)}</span><span>${service.requires_quote ? "exige avaliação" : "preço direto"} · ${service.price_type === "starting_at" ? "preço inicial" : service.price_type}</span></article>`).join("");
+  }
+
+  byId("services-filters").addEventListener("submit", (event) => { event.preventDefault(); loadServices(); });
+  loadServices().catch(() => {});
+</script>

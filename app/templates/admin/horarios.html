@@ -1,0 +1,33 @@
+<section class="panel"><label>Barbeiro <select id="hours-barber" onchange="loadHours()"><option value="all">Todos</option><option value="main">Lucas</option><option value="daniel">Daniel</option></select></label></section>
+<section class="cards">
+  <article class="card"><span>Minutos agendados</span><strong id="scheduled-minutes">0</strong></article>
+  <article class="card"><span>Minutos disponíveis</span><strong id="available-minutes">0</strong></article>
+  <article class="card"><span>Ocupação estimada</span><strong id="occupancy-percent">sem base</strong></article>
+</section>
+
+<section class="grid two-columns">
+  <article class="panel">
+    <h2>Ranking por hora do dia</h2>
+    <div id="hour-ranking" class="stack empty">Nenhum agendamento encontrado para esse período.</div>
+  </article>
+  <article class="panel">
+    <h2>Ranking por dia da semana</h2>
+    <div id="weekday-ranking" class="stack empty">Nenhum agendamento encontrado para esse período.</div>
+  </article>
+</section>
+
+<script>
+  async function loadHours() {
+    const payload = await fetch(`/admin/api/busy-hours-detail?resource_key=${byId("hours-barber").value}`).then((response) => response.json());
+    setText("scheduled-minutes", payload.occupancy.scheduled_minutes);
+    setText("available-minutes", payload.occupancy.available_minutes);
+    setText("occupancy-percent", payload.occupancy.occupancy_percent === null ? "sem base" : `${payload.occupancy.occupancy_percent.toFixed(2)}%`);
+    const maxHour = Math.max(0, ...payload.hours.map((item) => item.appointments));
+    const maxDay = Math.max(0, ...payload.weekdays.map((item) => item.appointments));
+    byId("hour-ranking").classList.toggle("empty", payload.hours.length === 0);
+    byId("weekday-ranking").classList.toggle("empty", payload.weekdays.length === 0);
+    byId("hour-ranking").innerHTML = payload.hours.length ? payload.hours.map((item) => `<div class="ranking-line"><div><strong>${item.hour}</strong><span>${item.appointments} agendamentos</span></div>${bar(item.appointments, maxHour)}</div>`).join("") : "Nenhum agendamento encontrado para esse período.";
+    byId("weekday-ranking").innerHTML = payload.weekdays.length ? payload.weekdays.map((item) => `<div class="ranking-line"><div><strong>${escapeHtml(item.label)}</strong><span>${item.appointments} agendamentos</span></div>${bar(item.appointments, maxDay)}</div>`).join("") : "Nenhum agendamento encontrado para esse período.";
+  }
+  loadHours().catch(() => {});
+</script>
