@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import Settings
 from app.domain.barbershop_catalog import (
     BUSINESS_HOURS_CATALOG,
+    FULL_ADDRESS,
+    GOOGLE_MAPS_URL,
     PAYMENT_METHODS,
     PROMOTION,
     SERVICE_CATALOG,
@@ -667,8 +669,8 @@ class AdminDashboardService:
         public_name = "O Original Barbershop"
         return BarbershopSettingsResponse(
             public_name=public_name,
-            address="Avenida Braulino Martins Mundim, 1040 - Centro",
-            google_maps_url="https://maps.app.goo.gl/zynRMCNb19d2hqn58",
+            address=FULL_ADDRESS,
+            google_maps_url=GOOGLE_MAPS_URL,
             business_hours=[
                 PublicBusinessHourItem(
                     weekday=item.weekday,
@@ -703,7 +705,6 @@ class AdminDashboardService:
                 pending_note=str(PROMOTION["pending_note"]),
             ),
             pending_items=[
-                "Cidade e CEP não informados.",
                 "Modalidades de corte do combo ainda não confirmadas.",
             ],
         )

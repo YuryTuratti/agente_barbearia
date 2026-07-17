@@ -591,13 +591,17 @@ def test_barbershop_settings_exposes_only_public_information() -> None:
     serialized = payload.model_dump_json()
 
     assert payload.public_name == "O Original Barbershop"
-    assert "Avenida Braulino Martins Mundim" in (payload.address or "")
-    assert payload.google_maps_url is not None
+    assert "Av. Brasil Leste" in (payload.address or "")
+    assert payload.address == (
+        "O Original Barbershop, Av. Brasil Leste, 245 - Belo Horizonte, "
+        "Monte Carmelo - MG, 38500-000."
+    )
+    assert payload.google_maps_url == "https://maps.app.goo.gl/YqSBdh78FYGhJ6vg6"
     assert payload.business_hours
     assert "PIX" in payload.payment_methods
     assert payload.services
     assert payload.promotion is not None
-    assert "Cidade e CEP" in " ".join(payload.pending_items)
+    assert "Cidade e CEP" not in " ".join(payload.pending_items)
     assert "combo" in " ".join(payload.pending_items)
     assert "manager_name" not in serialized
     assert "DATABASE_URL" not in serialized

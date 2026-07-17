@@ -13,6 +13,8 @@ from app.domain.barbershop_catalog import (
     seed_confirmed_services,
 )
 from app.prompts.carlos_scheduling_write import CARLOS_SCHEDULING_WRITE_SYSTEM_PROMPT
+from app.prompts.carlos import CARLOS_SYSTEM_PROMPT
+from app.prompts.carlos_scheduling import CARLOS_SCHEDULING_SYSTEM_PROMPT
 from app.services.scheduling_action_service import SchedulingActionService
 from app.tools.scheduling_definitions import (
     GET_BARBERSHOP_INFO_TOOL_NAME,
@@ -38,6 +40,21 @@ EXPECTED_DURATIONS = {
     "pigmentacao-barba-cabelo": 90,
     "platinado-luzes": 90,
 }
+
+
+def test_all_carlos_personas_use_confirmed_location_and_never_ask_where() -> None:
+    exact_reply = (
+        "O atendimento é na O Original Barbershop, Av. Brasil Leste, 245 - "
+        "Belo Horizonte, Monte Carmelo - MG, 38500-000."
+    )
+    for prompt in (
+        CARLOS_SYSTEM_PROMPT,
+        CARLOS_SCHEDULING_SYSTEM_PROMPT,
+        CARLOS_SCHEDULING_WRITE_SYSTEM_PROMPT,
+    ):
+        assert exact_reply in prompt
+        assert "Nunca pergunte onde sera o atendimento" in prompt
+        assert "nunca sugira encontro ou atendimento" in prompt
 
 
 @pytest.mark.anyio
@@ -68,8 +85,10 @@ def test_seed_configuration_is_ready_for_scheduling_without_payment_warning(caps
     assert result["errors"] == []
     assert [warning["code"] for warning in result["warnings"]] == [
         "promotion_configuration_incomplete",
-        "address_incomplete",
     ]
+    assert seed["address"]["city"] == "Monte Carmelo"
+    assert seed["address"]["state"] == "MG"
+    assert "address_incomplete" not in str(result)
     assert "service_durations_missing" not in str(result)
     assert "payment_methods_unconfirmed" not in str(result)
     assert len(seed["payment_methods"]) == 4
@@ -134,6 +153,15 @@ async def test_list_services_and_barbershop_info_return_confirmed_public_data(se
     assert "por area" in services["pigmentacao-barba-cabelo"]["price_display"]
 
     assert info_result.data == {
+        "public_name": "O Original Barbershop",
+        "address": (
+            "O Original Barbershop, Av. Brasil Leste, 245 - Belo Horizonte, "
+            "Monte Carmelo - MG, 38500-000."
+        ),
+        "city": "Monte Carmelo",
+        "state": "MG",
+        "postal_code": "38500-000",
+        "google_maps_url": "https://maps.app.goo.gl/YqSBdh78FYGhJ6vg6",
         "payment_methods_configured": True,
         "payment_methods": ["Dinheiro", "Cartão de crédito", "Cartão de débito", "PIX"],
         "payment_information": "Aceitamos dinheiro, cartão de crédito, cartão de débito e PIX.",

@@ -12,6 +12,13 @@ from app.database.models import BarbershopResource, BusinessHours, Service
 
 
 SEED_PATH = Path("data/barbershops/o_original_barbershop.json")
+PUBLIC_NAME = "O Original Barbershop"
+STREET_ADDRESS = "Av. Brasil Leste, 245 - Belo Horizonte"
+CITY = "Monte Carmelo"
+STATE = "MG"
+POSTAL_CODE = "38500-000"
+GOOGLE_MAPS_URL = "https://maps.app.goo.gl/YqSBdh78FYGhJ6vg6"
+FULL_ADDRESS = f"{PUBLIC_NAME}, {STREET_ADDRESS}, {CITY} - {STATE}, {POSTAL_CODE}."
 
 PAYMENT_METHODS = [
     {"key": "cash", "display_name": "Dinheiro"},
@@ -134,6 +141,12 @@ def format_brl(price_cents: int) -> str:
 
 def get_barbershop_info() -> dict[str, Any]:
     return {
+        "public_name": PUBLIC_NAME,
+        "address": FULL_ADDRESS,
+        "city": CITY,
+        "state": STATE,
+        "postal_code": POSTAL_CODE,
+        "google_maps_url": GOOGLE_MAPS_URL,
         "payment_methods_configured": True,
         "payment_methods": [method["display_name"] for method in PAYMENT_METHODS],
         "payment_information": PAYMENT_INFORMATION,
@@ -375,11 +388,11 @@ def check_seed_configuration(seed: dict[str, Any]) -> dict[str, Any]:
     )
 
     address = seed.get("address", {})
-    if not address.get("city") or not address.get("postal_code"):
+    if not address.get("city") or not address.get("state"):
         warnings.append(
             {
                 "code": "address_incomplete",
-                "message": "Cidade e CEP nao foram informados no formulario.",
+                "message": "Cidade e estado nao foram informados no formulario.",
             }
         )
 

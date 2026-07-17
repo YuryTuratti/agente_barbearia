@@ -22,10 +22,11 @@
   "payment_methods_raw_answer": "Todas a cima",
   "payment_methods_pending_note": null,
   "address": {
-    "street": "Avenida Braulino Martins Mundim, 1040 - Centro",
-    "city": null,
-    "postal_code": null,
-    "google_maps_url": "https://maps.app.goo.gl/zynRMCNb19d2hqn58"
+    "street": "Av. Brasil Leste, 245 - Belo Horizonte",
+    "city": "Monte Carmelo",
+    "state": "MG",
+    "postal_code": "38500-000",
+    "google_maps_url": "https://maps.app.goo.gl/YqSBdh78FYGhJ6vg6"
   },
   "resources": [
     {"resource_key": "main", "display_name": "Lucas", "is_active": true, "booking_enabled": true, "sort_order": 1},
