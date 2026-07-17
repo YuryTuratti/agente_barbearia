@@ -1,4 +1,6 @@
 import inspect
+import logging
+import re
 from typing import TYPE_CHECKING, Any
 
 from pydantic import SecretStr
@@ -14,6 +16,9 @@ from app.schemas.openai_response import OpenAIResponseTurn, OpenAITextResult, Op
 if TYPE_CHECKING:
     from openai import AsyncOpenAI
 
+logger = logging.getLogger(__name__)
+CHAT_EMPTY_FALLBACK = "Desculpa, não consegui entender bem. Pode me mandar de novo?"
+
 
 class OpenAIResponsesClient:
     def __init__(
@@ -24,6 +29,7 @@ class OpenAIResponsesClient:
         timeout_seconds: float,
         max_output_tokens: int,
         base_url: str | None = None,
+        compat_mode: str = "responses",
         sdk_client: "AsyncOpenAI | None" = None,
     ) -> None:
         if not api_key.get_secret_value().strip():
@@ -36,9 +42,12 @@ class OpenAIResponsesClient:
             raise OpenAIPermanentError(
                 "OpenAI max output tokens must be greater than zero."
             )
+        if compat_mode not in {"responses", "chat_completions"}:
+            raise OpenAIPermanentError("OpenAI compatibility mode is invalid.")
 
         self._model = model
         self._max_output_tokens = max_output_tokens
+        self._compat_mode = compat_mode
         self._owns_client = sdk_client is None
         if sdk_client is None:
             try:
@@ -69,6 +78,12 @@ class OpenAIResponsesClient:
             for message in messages
         ]
 
+        if self._compat_mode == "chat_completions":
+            return await self._generate_chat_completion(
+                instructions=instructions,
+                messages=safe_input,
+            )
+
         try:
             response = await self._sdk_client.responses.create(
                 model=self._model,
@@ -78,6 +93,7 @@ class OpenAIResponsesClient:
                 store=False,
             )
         except Exception as error:
+            _log_provider_error(error, mode="responses")
             raise _map_openai_error(error) from error
 
         output_text = getattr(response, "output_text", None)
@@ -86,6 +102,33 @@ class OpenAIResponsesClient:
 
         return OpenAITextResult(
             text=output_text.strip(),
+            response_id=_optional_str(getattr(response, "id", None)),
+            model=_optional_str(getattr(response, "model", None)),
+        )
+
+    async def _generate_chat_completion(
+        self,
+        *,
+        instructions: str,
+        messages: list[dict[str, str]],
+    ) -> OpenAITextResult:
+        chat_messages = [{"role": "system", "content": instructions}, *messages]
+        try:
+            response = await self._sdk_client.chat.completions.create(
+                model=self._model,
+                messages=chat_messages,
+                max_tokens=self._max_output_tokens,
+            )
+        except Exception as error:
+            _log_provider_error(error, mode="chat_completions")
+            raise _map_openai_error(error) from error
+
+        choices = getattr(response, "choices", None) or []
+        message = getattr(choices[0], "message", None) if choices else None
+        content = getattr(message, "content", None)
+        text = content.strip() if isinstance(content, str) else ""
+        return OpenAITextResult(
+            text=text or CHAT_EMPTY_FALLBACK,
             response_id=_optional_str(getattr(response, "id", None)),
             model=_optional_str(getattr(response, "model", None)),
         )
@@ -109,6 +152,7 @@ class OpenAIResponsesClient:
                 store=False,
             )
         except Exception as error:
+            _log_provider_error(error, mode="responses")
             raise _map_openai_error(error) from error
 
         output_text = getattr(response, "output_text", None)
@@ -173,6 +217,32 @@ def _map_openai_error(error: Exception) -> Exception:
         return OpenAIPermanentError("OpenAI request configuration is invalid.")
 
     return OpenAITemporaryError("OpenAI request failed.")
+
+
+def _log_provider_error(error: Exception, *, mode: str) -> None:
+    response = getattr(error, "response", None)
+    status_code = getattr(error, "status_code", None) or getattr(
+        response, "status_code", None
+    )
+    body = getattr(response, "text", None) if response is not None else None
+    logger.error(
+        "OpenAI-compatible provider request failed: mode=%s error_type=%s "
+        "status_code=%s response_body=%s",
+        mode,
+        error.__class__.__name__,
+        status_code,
+        _sanitize_provider_body(body),
+    )
+
+
+def _sanitize_provider_body(body: object) -> str | None:
+    if not isinstance(body, str) or not body.strip():
+        return None
+    clean = " ".join(body.split())[:500]
+    clean = re.sub(r"(?i)bearer\s+\S+", "Bearer [REDACTED]", clean)
+    clean = re.sub(r"\bsk-[A-Za-z0-9_-]+", "[REDACTED]", clean)
+    clean = re.sub(r"\b\d{8,15}\b", "[REDACTED_PHONE]", clean)
+    return clean
 
 
 def _optional_str(value: Any) -> str | None:

@@ -31,8 +31,11 @@ class FakeResponses:
 
 
 class FakeSDK:
-    def __init__(self, responses: FakeResponses) -> None:
+    def __init__(self, responses: FakeResponses, chat_completions=None) -> None:
         self.responses = responses
+        self.chat = SimpleNamespace(
+            completions=chat_completions or FakeChatCompletions()
+        )
         self.closed = False
 
     async def close(self) -> None:
@@ -43,6 +46,20 @@ class FakeOpenAIError(Exception):
     def __init__(self, status_code: int | None = None) -> None:
         self.status_code = status_code
         super().__init__("unsafe full error with SECRET 5534999999999 cliente text")
+
+
+class FakeChatCompletions:
+    def __init__(self, content: str | None = " Oi pelo Ollama! ") -> None:
+        self.calls: list[dict[str, object]] = []
+        self.response = SimpleNamespace(
+            id="chat_1",
+            model="llama3.1:8b",
+            choices=[SimpleNamespace(message=SimpleNamespace(content=content))],
+        )
+
+    async def create(self, **kwargs):
+        self.calls.append(kwargs)
+        return self.response
 
 
 @pytest.mark.anyio
@@ -73,6 +90,38 @@ async def test_responses_api_request_shape_and_output_text() -> None:
     assert "internal-id" not in str(call["input"])
     assert result.text == "Ola!"
     assert result.response_id == "resp_1"
+
+
+@pytest.mark.anyio
+async def test_chat_completions_mode_uses_system_user_and_assistant_roles() -> None:
+    chat = FakeChatCompletions()
+    sdk = FakeSDK(FakeResponses(), chat)
+    client = _client(sdk, compat_mode="chat_completions")
+    messages = [
+        ConversationMessage(role="user", content="Ola", created_at=_now()),
+        ConversationMessage(role="assistant", content="Oi", created_at=_now()),
+    ]
+
+    result = await client.generate_text(instructions="persona", messages=messages)
+
+    assert sdk.responses.calls == []
+    assert chat.calls[0]["messages"] == [
+        {"role": "system", "content": "persona"},
+        {"role": "user", "content": "Ola"},
+        {"role": "assistant", "content": "Oi"},
+    ]
+    assert "developer" not in str(chat.calls[0]["messages"])
+    assert result.text == "Oi pelo Ollama!"
+
+
+@pytest.mark.anyio
+async def test_empty_chat_completion_uses_safe_fallback() -> None:
+    chat = FakeChatCompletions(content=" ")
+    client = _client(FakeSDK(FakeResponses(), chat), compat_mode="chat_completions")
+
+    result = await client.generate_text(instructions="persona", messages=_messages())
+
+    assert result.text == "Desculpa, não consegui entender bem. Pode me mandar de novo?"
 
 
 @pytest.mark.anyio
@@ -126,12 +175,15 @@ async def test_injected_client_is_not_closed() -> None:
     assert sdk.closed is False
 
 
-def _client(sdk: FakeSDK) -> OpenAIResponsesClient:
+def _client(
+    sdk: FakeSDK, *, compat_mode: str = "responses"
+) -> OpenAIResponsesClient:
     return OpenAIResponsesClient(
         api_key=SecretStr("SECRET"),
         model="gpt-4o-mini",
         timeout_seconds=30,
         max_output_tokens=300,
+        compat_mode=compat_mode,
         sdk_client=sdk,
     )
 

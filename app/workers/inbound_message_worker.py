@@ -239,6 +239,7 @@ def _build_openai_client(settings: Settings) -> OpenAIResponsesClient:
         timeout_seconds=settings.openai_timeout_seconds,
         max_output_tokens=settings.openai_max_output_tokens,
         base_url=settings.openai_base_url,
+        compat_mode=settings.openai_compat_mode,
     )
 
 

@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     outbound_worker_batch_size: int = 5
     openai_api_key: SecretStr | None = None
     openai_base_url: str | None = None
+    openai_compat_mode: str = "responses"
     openai_model: str = "gpt-4o-mini"
     openai_timeout_seconds: float = 30.0
     openai_max_output_tokens: int = 300
@@ -257,6 +258,16 @@ class Settings(BaseSettings):
     def inbound_allowed_phone_set(self) -> set[str]:
         return set(filter(None, self.inbound_allowed_phones.split(",")))
 
+    @field_validator("openai_compat_mode")
+    @classmethod
+    def validate_openai_compat_mode(cls, value: str) -> str:
+        clean = value.strip().lower()
+        if clean not in {"responses", "chat_completions"}:
+            raise ValueError(
+                "OpenAI compat mode must be responses or chat_completions."
+            )
+        return clean
+
     @field_validator("evolution_media_base64_path")
     @classmethod
     def validate_evolution_media_base64_path(cls, value: str) -> str:
@@ -296,6 +307,12 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_production_settings(self) -> Self:
+        if (
+            "openai_compat_mode" not in self.model_fields_set
+            and self.openai_base_url is not None
+            and "ollama" in self.openai_base_url.lower()
+        ):
+            self.openai_compat_mode = "chat_completions"
         if (
             self.app_env.strip().lower() == "production"
             and "app_enable_docs" not in self.model_fields_set

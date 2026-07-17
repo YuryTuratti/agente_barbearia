@@ -1,9 +1,12 @@
 import anyio
+from types import SimpleNamespace
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import Settings
+from app.clients.openai_client import OpenAIResponsesClient
 from app.database.models import InboundMessage, OutboundMessage
 from app.handlers.carlos_ai_handler import CarlosAIHandler
 from app.schemas.openai_response import OpenAITextResult
@@ -40,6 +43,40 @@ class FakeEvolutionClient:
                 "status_code": 200,
             },
         )()
+
+
+class FakeChatCompletions:
+    def __init__(self, error: Exception | None = None) -> None:
+        self.calls = 0
+        self.error = error
+
+    async def create(self, **kwargs):
+        self.calls += 1
+        if self.error is not None:
+            raise self.error
+        return SimpleNamespace(
+            id="chat-ollama",
+            model="llama3.1:8b",
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(content="Resposta via chat completions")
+                )
+            ],
+        )
+
+
+class FakeChatSDK:
+    def __init__(self, error: Exception | None = None) -> None:
+        self.chat_completions = FakeChatCompletions(error)
+        self.chat = SimpleNamespace(completions=self.chat_completions)
+
+
+class FakeProviderError(Exception):
+    status_code = 500
+    response = SimpleNamespace(
+        status_code=500,
+        text='provider failed for 5534999999999 with token sk-unsafe',
+    )
 
 
 def test_local_end_to_end_openai_to_outbound_to_evolution(
@@ -112,6 +149,95 @@ def test_local_end_to_end_openai_to_outbound_to_evolution(
     assert len(outbounds) == 1
     assert inbounds[0].status == "completed"
     assert outbounds[0].status == "sent"
+
+
+def test_chat_completions_reply_is_enqueued_as_outbound(
+    client: TestClient,
+    session_maker: async_sessionmaker[AsyncSession],
+) -> None:
+    response = client.post("/webhooks/evolution", json=_payload())
+    assert response.status_code == 200
+    sdk = FakeChatSDK()
+    openai_client = OpenAIResponsesClient(
+        api_key=SecretStr("ollama"),
+        model="llama3.1:8b",
+        timeout_seconds=30,
+        max_output_tokens=300,
+        compat_mode="chat_completions",
+        sdk_client=sdk,
+    )
+
+    async def run_flow() -> None:
+        settings = _settings()
+        service = CarlosResponseService(
+            session_factory=session_maker,
+            openai_client=openai_client,
+            settings=settings,
+        )
+        processor = InboundMessageProcessor(
+            session_maker,
+            CarlosAIHandler(session_factory=session_maker, response_service=service),
+            settings,
+        )
+        assert await processor.process_once() == 1
+
+    anyio.run(run_flow)
+
+    async def inspect_outbound() -> list[OutboundMessage]:
+        async with session_maker() as session:
+            return list((await session.execute(select(OutboundMessage))).scalars().all())
+
+    outbounds = anyio.run(inspect_outbound)
+    assert sdk.chat_completions.calls == 1
+    assert outbounds[0].text == "Resposta via chat completions"
+
+
+def test_chat_provider_error_leaves_inbound_pending_for_retry(
+    client: TestClient,
+    session_maker: async_sessionmaker[AsyncSession],
+    caplog,
+) -> None:
+    caplog.set_level("ERROR")
+    assert client.post("/webhooks/evolution", json=_payload()).status_code == 200
+    sdk = FakeChatSDK(FakeProviderError())
+    openai_client = OpenAIResponsesClient(
+        api_key=SecretStr("ollama"),
+        model="llama3.1:8b",
+        timeout_seconds=30,
+        max_output_tokens=300,
+        compat_mode="chat_completions",
+        sdk_client=sdk,
+    )
+
+    async def run_flow() -> None:
+        settings = _settings()
+        service = CarlosResponseService(
+            session_factory=session_maker,
+            openai_client=openai_client,
+            settings=settings,
+        )
+        processor = InboundMessageProcessor(
+            session_maker,
+            CarlosAIHandler(session_factory=session_maker, response_service=service),
+            settings,
+        )
+        assert await processor.process_once() == 1
+
+    anyio.run(run_flow)
+
+    async def inspect_inbound() -> InboundMessage:
+        async with session_maker() as session:
+            return (await session.execute(select(InboundMessage))).scalar_one()
+
+    inbound = anyio.run(inspect_inbound)
+    assert sdk.chat_completions.calls == 1
+    assert inbound.status == "pending"
+    assert inbound.next_attempt_at is not None
+    assert "mode=chat_completions" in caplog.text
+    assert "status_code=500" in caplog.text
+    assert "FakeProviderError" in caplog.text
+    assert "5534999999999" not in caplog.text
+    assert "sk-unsafe" not in caplog.text
 
 
 def _settings() -> Settings:
