@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     openai_history_limit: int = 12
     openai_max_reply_characters: int = 1200
     openai_max_tool_rounds: int = 5
+    llm_provider: str = "openai"
+    ollama_api_key: SecretStr | None = None
+    ollama_base_url: str = "https://ollama.com"
+    ollama_model: str = "gpt-oss:120b"
+    ollama_timeout_seconds: float = 120.0
     inbound_allowed_phones: str = ""
     inbound_audio_transcription_enabled: bool = False
     inbound_image_analysis_enabled: bool = False
@@ -115,6 +120,7 @@ class Settings(BaseSettings):
         "openai_max_output_tokens",
         "openai_history_limit",
         "openai_max_reply_characters",
+        "ollama_timeout_seconds",
         "openai_transcription_timeout_seconds",
         "openai_transcription_max_characters",
         "gemini_image_timeout_seconds",
@@ -218,6 +224,8 @@ class Settings(BaseSettings):
         "evolution_webhook_secret_header",
         "evolution_send_text_path",
         "openai_model",
+        "ollama_base_url",
+        "ollama_model",
         "openai_transcription_model",
         "gemini_image_model",
         "evolution_media_base64_path",
@@ -230,6 +238,14 @@ class Settings(BaseSettings):
             raise ValueError("Setting must not be blank.")
 
         return value
+
+    @field_validator("llm_provider")
+    @classmethod
+    def validate_llm_provider(cls, value: str) -> str:
+        clean = value.strip().lower()
+        if clean not in {"openai", "ollama_cloud"}:
+            raise ValueError("LLM provider must be openai or ollama_cloud.")
+        return clean
 
     @field_validator(
         "openai_transcription_language",

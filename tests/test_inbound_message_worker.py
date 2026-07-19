@@ -5,6 +5,7 @@ from app.exceptions.openai import OpenAIPermanentError
 from app.handlers.carlos_ai_handler import CarlosAIHandler
 from app.handlers.logging_message_handler import LoggingMessageHandler
 from app.handlers.test_reply_handler import TestReplyHandler
+from app.clients.ollama_cloud_client import OllamaCloudClient
 from app.workers import inbound_message_worker
 
 
@@ -88,6 +89,39 @@ def test_openai_text_builds_carlos_handler_with_injected_client() -> None:
     )
 
     assert isinstance(handler, CarlosAIHandler)
+
+
+def test_openai_text_uses_openai_provider_by_default(monkeypatch) -> None:
+    sentinel = FakeOpenAIClient()
+    monkeypatch.setattr(inbound_message_worker, "_build_openai_client", lambda settings: sentinel)
+
+    assert inbound_message_worker._build_text_client(_settings()) is sentinel
+
+
+def test_openai_text_builds_ollama_cloud_provider() -> None:
+    client = inbound_message_worker._build_text_client(
+        _settings(llm_provider="ollama_cloud", ollama_api_key="ollama-key")
+    )
+
+    assert isinstance(client, OllamaCloudClient)
+
+
+def test_ollama_cloud_requires_its_api_key() -> None:
+    with pytest.raises(OpenAIPermanentError):
+        inbound_message_worker._build_text_client(
+            _settings(llm_provider="ollama_cloud", ollama_api_key=None)
+        )
+
+
+def test_scheduling_keeps_official_openai_when_text_provider_is_ollama(monkeypatch) -> None:
+    sentinel = FakeOpenAIClient()
+    monkeypatch.setattr(inbound_message_worker, "_build_openai_client", lambda settings: sentinel)
+
+    inbound_message_worker._build_handler(
+        _settings(inbound_handler_mode="openai_scheduling", llm_provider="ollama_cloud")
+    )
+
+    assert sentinel is not None
 
 
 @pytest.mark.anyio

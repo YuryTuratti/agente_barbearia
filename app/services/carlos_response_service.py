@@ -1,8 +1,8 @@
 import logging
+from typing import Protocol
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.clients.openai_client import OpenAIResponsesClient
 from app.core.config import Settings
 from app.database.models import InboundMessage
 from app.exceptions.handlers import PermanentMessageHandlingError
@@ -14,12 +14,20 @@ from app.schemas.conversation import ConversationMessage
 logger = logging.getLogger(__name__)
 
 
+class TextGenerationClient(Protocol):
+    async def generate_text(
+        self, *, instructions: str, messages: list[ConversationMessage]
+    ) -> object: ...
+
+    async def close(self) -> None: ...
+
+
 class CarlosResponseService:
     def __init__(
         self,
         *,
         session_factory: async_sessionmaker[AsyncSession],
-        openai_client: OpenAIResponsesClient,
+        openai_client: TextGenerationClient,
         settings: Settings,
     ) -> None:
         self._session_factory = session_factory
@@ -53,7 +61,11 @@ class CarlosResponseService:
         logger.info(
             "Generating Carlos reply: inbound_record_id=%s model=%s history_count=%s",
             message.id,
-            self._settings.openai_model,
+            (
+                self._settings.ollama_model
+                if self._settings.llm_provider == "ollama_cloud"
+                else self._settings.openai_model
+            ),
             len(history),
         )
         result = await self._openai_client.generate_text(

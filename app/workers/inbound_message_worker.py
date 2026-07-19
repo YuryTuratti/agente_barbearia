@@ -6,6 +6,7 @@ import signal
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
 from app.clients.openai_client import OpenAIResponsesClient
+from app.clients.ollama_cloud_client import OllamaCloudClient
 from app.clients.evolution_media_client import EvolutionMediaClient
 from app.clients.gemini_image_client import GeminiImageClient
 from app.clients.openai_transcription_client import OpenAITranscriptionClient
@@ -166,7 +167,7 @@ def _build_handler(
     if settings.inbound_handler_mode == "test_reply":
         return TestReplyHandler(AsyncSessionLocal)
     if settings.inbound_handler_mode == "openai_text":
-        client = openai_client or _build_openai_client(settings)
+        client = openai_client or _build_text_client(settings)
         response_service = CarlosResponseService(
             session_factory=AsyncSessionLocal,
             openai_client=client,
@@ -240,6 +241,26 @@ def _build_openai_client(settings: Settings) -> OpenAIResponsesClient:
         max_output_tokens=settings.openai_max_output_tokens,
         base_url=settings.openai_base_url,
         compat_mode=settings.openai_compat_mode,
+    )
+
+
+def _build_text_client(settings: Settings) -> OpenAIResponsesClient | OllamaCloudClient:
+    if settings.llm_provider == "openai":
+        logger.info(
+            "LLM client configured: provider=openai model=%s timeout_seconds=%s",
+            settings.openai_model,
+            settings.openai_timeout_seconds,
+        )
+        return _build_openai_client(settings)
+    if settings.ollama_api_key is None:
+        raise OpenAIPermanentError(
+            "Ollama API key is required when LLM_PROVIDER=ollama_cloud."
+        )
+    return OllamaCloudClient(
+        api_key=settings.ollama_api_key,
+        base_url=settings.ollama_base_url,
+        model=settings.ollama_model,
+        timeout_seconds=settings.ollama_timeout_seconds,
     )
 
 
