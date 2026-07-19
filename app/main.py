@@ -2,7 +2,8 @@ import logging
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
+from fastapi.routing import APIRoute
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from starlette.responses import JSONResponse
@@ -137,5 +138,42 @@ async def info() -> dict[str, str]:
     }
 
 
-app.include_router(evolution_webhook_router)
-app.include_router(admin_dashboard_router)
+def include_concrete_routes(source_router: APIRouter) -> None:
+    """Register router endpoints as concrete APIRoutes on the application."""
+    for route in source_router.routes:
+        if not isinstance(route, APIRoute):
+            app.router.routes.append(route)
+            continue
+        app.router.add_api_route(
+            route.path,
+            route.endpoint,
+            methods=route.methods,
+            response_model=route.response_model,
+            status_code=route.status_code,
+            tags=route.tags,
+            dependencies=route.dependencies,
+            summary=route.summary,
+            description=route.description,
+            response_description=route.response_description,
+            responses=route.responses,
+            deprecated=route.deprecated,
+            operation_id=route.operation_id,
+            response_model_include=route.response_model_include,
+            response_model_exclude=route.response_model_exclude,
+            response_model_by_alias=route.response_model_by_alias,
+            response_model_exclude_unset=route.response_model_exclude_unset,
+            response_model_exclude_defaults=route.response_model_exclude_defaults,
+            response_model_exclude_none=route.response_model_exclude_none,
+            include_in_schema=route.include_in_schema,
+            response_class=route.response_class,
+            name=route.name,
+            callbacks=route.callbacks,
+            openapi_extra=route.openapi_extra,
+            generate_unique_id_function=route.generate_unique_id_function,
+        )
+
+
+# FastAPI versions with lazy include_router() wrappers hide the paths from
+# app.routes. Concrete registration keeps diagnostics and dependency overrides.
+include_concrete_routes(evolution_webhook_router)
+include_concrete_routes(admin_dashboard_router)
