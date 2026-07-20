@@ -87,6 +87,9 @@ class SchedulingWriteToolExecutor:
         try:
             if tool_name == PREPARE_CREATE_APPOINTMENT_TOOL_NAME:
                 args = PrepareCreateAppointmentArguments.model_validate_json(arguments_json or "{}")
+                resource_key = normalize_barber(args.barber)
+                if resource_key in {None, "__invalid__"}:
+                    return _error(tool_name, "barber_required", "Escolha Lucas ou Daniel antes de preparar o agendamento.")
                 result = await self._action_service.prepare_create(
                     message=message,
                     payload=CreateAppointmentActionPayload(
@@ -94,7 +97,7 @@ class SchedulingWriteToolExecutor:
                         local_date=args.local_date,
                         local_start_time=_parse_hhmm(args.local_start_time),
                         customer_name=args.customer_name,
-                        resource_key=normalize_barber(args.barber) or "main",
+                        resource_key=resource_key,
                     ),
                 )
                 return _ok(tool_name, result.model_dump(mode="json"))

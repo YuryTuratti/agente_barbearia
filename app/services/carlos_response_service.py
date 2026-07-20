@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Protocol
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -87,6 +88,8 @@ def normalize_carlos_reply(text: str, *, max_characters: int) -> str:
     if not normalized:
         raise OpenAIInvalidResponseError("OpenAI returned an empty response.")
 
+    normalized = sanitize_carlos_reply(normalized)
+
     if len(normalized) <= max_characters:
         return normalized
 
@@ -100,3 +103,19 @@ def normalize_carlos_reply(text: str, *, max_characters: int) -> str:
                 return candidate
 
     return limited.strip()
+
+
+def sanitize_carlos_reply(text: str) -> str:
+    """Remove construcoes proibidas mesmo quando o modelo ignora o prompt."""
+    replacements = (
+        (r"qual dia da manh[ãa](?:\s+voc[êe]|\s+vc)?(?:\s+pretende)?(?:\s+marcar)?\??", "Beleza, de manhã. Para qual dia?"),
+        (r"qual dia da tarde(?:\s+voc[êe]|\s+vc)?(?:\s+pretende)?(?:\s+marcar)?\??", "Beleza, à tarde. Para qual dia?"),
+        (r"qual dia da noite(?:\s+voc[êe]|\s+vc)?(?:\s+pretende)?(?:\s+marcar)?\??", "Beleza, à noite. Para qual dia?"),
+        (r"(?:que|qual) dia (?:voc[êe]|vc) pretende marcar\??", "Para qual dia você quer marcar?"),
+        (r"onde pretende se encontrar\??", "O atendimento é na O Original Barbershop."),
+        (r"pretende marcar", "quer marcar"),
+    )
+    sanitized = text
+    for pattern, replacement in replacements:
+        sanitized = re.sub(pattern, replacement, sanitized, flags=re.IGNORECASE)
+    return sanitized.strip()

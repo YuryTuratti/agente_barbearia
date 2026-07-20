@@ -30,7 +30,7 @@ async def test_write_executor_prepare_does_not_create_appointment_and_confirm_re
         tool_name=PREPARE_CREATE_APPOINTMENT_TOOL_NAME,
         arguments_json=(
             f'{{"service_ids": ["{service_id}"], "local_date": "2026-07-10", '
-            '"local_start_time": "08:00", "customer_name": null}'
+                '"local_start_time": "08:00", "customer_name": null, "barber": "lucas"}'
         ),
         message=prepare,
     )

@@ -61,7 +61,7 @@ def get_scheduling_tool_definitions() -> list[dict[str, Any]]:
                         "items": {"type": "string"},
                         "minItems": 1,
                     },
-                    "barber": {"type": ["string", "null"], "description": "Profissional: lucas, daniel, main, barbeiro principal, qualquer ou sem preferencia."},
+                    "barber": {"type": ["string", "null"], "description": "Profissional: lucas, daniel, main, barbeiro principal, tanto faz, qualquer ou sem preferencia. Null busca todos os profissionais."},
                 },
                 "required": ["local_date", "service_ids", "barber"],
                 "additionalProperties": False,

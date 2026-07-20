@@ -220,7 +220,7 @@ async def test_degrade_end_to_end_tool_flow_creates_one_thirty_minute_appointmen
         tool_name=PREPARE_CREATE_APPOINTMENT_TOOL_NAME,
         arguments_json=(
             f'{{"service_ids": ["{degrade.id}"], "local_date": "2026-07-10", '
-            '"local_start_time": "14:00", "customer_name": null}'
+                '"local_start_time": "14:00", "customer_name": null, "barber": "lucas"}'
         ),
         message=prepare,
     )

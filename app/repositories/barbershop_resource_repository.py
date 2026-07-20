@@ -33,7 +33,11 @@ BARBER_ALIASES = {
     "lucas": "main", "com lucas": "main", "com o lucas": "main",
     "main": "main", "barbeiro principal": "main", "o principal": "main", "principal": "main",
     "outro barbeiro": "main", "sem ser o daniel": "main",
-    "qualquer": None, "sem preferencia": None, "sem preferência": None,
+    "qualquer": None, "qualquer um": None, "tanto faz": None,
+    "o primeiro disponivel": None, "o primeiro disponível": None,
+    "primeiro disponivel": None, "primeiro disponível": None,
+    "quem tiver horario": None, "quem tiver horário": None,
+    "sem preferencia": None, "sem preferência": None,
 }
 
 
