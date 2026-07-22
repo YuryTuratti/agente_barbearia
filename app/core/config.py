@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     worker_retry_delay_seconds: int = 30
     worker_processing_timeout_seconds: int = 300
     worker_batch_size: int = 1
+    inbound_message_buffer_seconds: int = 30
     inbound_handler_mode: str = "logging"
     evolution_api_base_url: str = "http://localhost:8080"
     evolution_api_key: str = "CHANGE_ME"
@@ -142,6 +143,13 @@ class Settings(BaseSettings):
         if value <= 0:
             raise ValueError("Numeric settings must be greater than zero.")
 
+        return value
+
+    @field_validator("inbound_message_buffer_seconds")
+    @classmethod
+    def validate_inbound_message_buffer_seconds(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("Inbound message buffer must be greater than or equal to zero.")
         return value
 
     @field_validator("database_max_overflow")
@@ -323,6 +331,13 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_production_settings(self) -> Self:
+        if (
+            self.app_env.strip().lower() != "production"
+            and "inbound_message_buffer_seconds" not in self.model_fields_set
+        ):
+            # Fast local/unit-test cycles remain immediate unless explicitly
+            # testing the debounce. Production keeps the declared 30s default.
+            self.inbound_message_buffer_seconds = 0
         if (
             "openai_compat_mode" not in self.model_fields_set
             and self.openai_base_url is not None

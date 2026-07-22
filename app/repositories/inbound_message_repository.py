@@ -1,6 +1,6 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, exists, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +19,7 @@ class InboundMessageStateError(RuntimeError):
 async def register_message(
     session: AsyncSession,
     message: NormalizedMessage,
+    buffer_seconds: int = 0,
 ) -> InboundMessageRegistrationResult:
     """Persist a processable inbound message and treat unique duplicates safely."""
     if not message.processable:
@@ -26,6 +27,9 @@ async def register_message(
     if message.message_id is None:
         raise ValueError("A message_id is required to register an inbound message.")
 
+    if buffer_seconds < 0:
+        raise ValueError("buffer_seconds must be greater than or equal to zero.")
+    process_after_at = datetime.now(UTC) + timedelta(seconds=buffer_seconds)
     record = InboundMessage(
         instance=message.instance or "",
         message_id=message.message_id,
@@ -39,11 +43,24 @@ async def register_message(
         message_timestamp=message.timestamp,
         status="pending",
         attempts=0,
+        process_after_at=process_after_at,
     )
 
     session.add(record)
 
     try:
+        # Every pending fragment in this conversation receives the same deadline.
+        # Thus a new fragment resets the quiet-period clock transactionally.
+        if message.phone and hasattr(session, "execute"):
+            await session.execute(
+                update(InboundMessage)
+                .where(
+                    InboundMessage.instance == (message.instance or ""),
+                    InboundMessage.phone == message.phone,
+                    InboundMessage.status == "pending",
+                )
+                .values(process_after_at=process_after_at)
+            )
         await session.commit()
     except IntegrityError as error:
         await session.rollback()
@@ -130,6 +147,22 @@ async def claim_pending_messages(
     messages = list(result.scalars().all())
 
     for message in messages:
+        # Older fragments become conversation history and never produce their own
+        # reply. The newest fragment is the sole representative handled by the IA.
+        if message.phone and message.process_after_at is not None:
+            older_result = await session.execute(
+                select(InboundMessage).where(
+                    InboundMessage.instance == message.instance,
+                    InboundMessage.phone == message.phone,
+                    InboundMessage.status == "pending",
+                    InboundMessage.id != message.id,
+                    InboundMessage.created_at <= message.created_at,
+                )
+            )
+            for older in older_result.scalars().all():
+                older.status = "completed"
+                older.processed_at = now
+                older.updated_at = now
         message.status = "processing"
         message.locked_at = now
         message.attempts += 1
@@ -255,13 +288,27 @@ def sanitize_error_message(error_message: str) -> str:
 
 
 def _pending_messages_statement(*, limit: int, now: datetime) -> Select[tuple[InboundMessage]]:
+    newer = InboundMessage.__table__.alias("newer_inbound")
     return (
         select(InboundMessage)
         .where(
             InboundMessage.status == "pending",
             (
+                InboundMessage.process_after_at.is_(None)
+                | (InboundMessage.process_after_at <= now)
+            ),
+            (
                 InboundMessage.next_attempt_at.is_(None)
                 | (InboundMessage.next_attempt_at <= now)
+            ),
+            ~exists(
+                select(1).select_from(newer).where(
+                    InboundMessage.process_after_at.is_not(None),
+                    newer.c.instance == InboundMessage.instance,
+                    newer.c.phone == InboundMessage.phone,
+                    newer.c.status == "pending",
+                    newer.c.created_at > InboundMessage.created_at,
+                )
             ),
         )
         .order_by(InboundMessage.created_at.asc())

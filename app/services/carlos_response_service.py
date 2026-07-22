@@ -1,5 +1,6 @@
 import logging
 import re
+from datetime import UTC, date, datetime
 from typing import Protocol
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -11,6 +12,8 @@ from app.exceptions.openai import OpenAIInvalidResponseError
 from app.prompts.carlos import CARLOS_SYSTEM_PROMPT
 from app.repositories.conversation_history_repository import get_recent_conversation
 from app.schemas.conversation import ConversationMessage
+from app.domain.scheduling import get_timezone
+from app.services.outbound_safety import secure_outbound_text
 
 logger = logging.getLogger(__name__)
 
@@ -73,9 +76,16 @@ class CarlosResponseService:
             instructions=CARLOS_SYSTEM_PROMPT,
             messages=conversation,
         )
+        if not (result.text or "").replace("\x00", "").strip():
+            raise OpenAIInvalidResponseError("OpenAI returned an empty response.")
 
+        local_today = datetime_now_local_date(self._settings)
         return normalize_carlos_reply(
-            result.text,
+            secure_outbound_text(
+                result.text,
+                local_today=local_today,
+                max_days_ahead=self._settings.scheduling_max_days_ahead,
+            ),
             max_characters=self._settings.openai_max_reply_characters,
         )
 
@@ -119,3 +129,7 @@ def sanitize_carlos_reply(text: str) -> str:
     for pattern, replacement in replacements:
         sanitized = re.sub(pattern, replacement, sanitized, flags=re.IGNORECASE)
     return sanitized.strip()
+
+
+def datetime_now_local_date(settings: Settings) -> date:
+    return datetime.now(UTC).astimezone(get_timezone(settings.barbershop_timezone)).date()

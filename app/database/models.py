@@ -72,6 +72,10 @@ class InboundMessage(Base):
         DateTime(timezone=True),
         nullable=True,
     )
+    process_after_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

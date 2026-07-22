@@ -15,6 +15,8 @@ from app.prompts.carlos_scheduling import CARLOS_SCHEDULING_SYSTEM_PROMPT
 from app.repositories.conversation_history_repository import get_recent_conversation
 from app.schemas.conversation import ConversationMessage
 from app.services.carlos_response_service import normalize_carlos_reply
+from app.services.outbound_safety import secure_outbound_text
+from app.services.outbound_safety import OUTSIDE_WINDOW_REPLY
 from app.tools.scheduling_definitions import get_scheduling_tool_definitions
 from app.tools.scheduling_executor import SchedulingToolExecutor
 
@@ -78,8 +80,15 @@ class CarlosSchedulingService:
             if not turn.tool_calls:
                 if not turn.output_text:
                     raise OpenAIInvalidResponseError("OpenAI returned an empty response.")
+                local_today = self._clock.now_utc().astimezone(
+                    get_timezone(self._settings.barbershop_timezone)
+                ).date()
                 return normalize_carlos_reply(
-                    turn.output_text,
+                    secure_outbound_text(
+                        turn.output_text,
+                        local_today=local_today,
+                        max_days_ahead=self._settings.scheduling_max_days_ahead,
+                    ),
                     max_characters=self._settings.openai_max_reply_characters,
                 )
             if round_index >= self._settings.openai_max_tool_rounds:
@@ -97,6 +106,12 @@ class CarlosSchedulingService:
                 arguments_json=tool_call.arguments,
                 message=message,
             )
+            if (
+                not tool_result.ok
+                and tool_result.error is not None
+                and tool_result.error.code == "outside_booking_window"
+            ):
+                return OUTSIDE_WINDOW_REPLY
             input_items = [
                 *input_items,
                 *turn.response_output_items,

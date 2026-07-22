@@ -11,6 +11,8 @@ from app.database.models import InboundMessage
 from app.domain.barbershop_catalog import format_price_display, get_barbershop_info
 from app.domain.clock import Clock, SystemClock
 from app.domain.scheduling import validate_instance, validate_phone, validate_resource_key
+from app.domain.scheduling import get_timezone
+from datetime import timedelta
 from app.exceptions.scheduling import (
     BookingNoticeError,
     BookingTooFarAheadError,
@@ -87,6 +89,17 @@ class SchedulingToolExecutor:
                 )
             if tool_name == LIST_AVAILABLE_SLOTS_TOOL_NAME:
                 arguments = _parse_arguments(ListAvailableSlotsArguments, arguments_json)
+                today = self._clock.now_utc().astimezone(
+                    get_timezone(self._settings.barbershop_timezone)
+                ).date()
+                if not today <= arguments.local_date <= today + timedelta(
+                    days=self._settings.scheduling_max_days_ahead
+                ):
+                    return _error(
+                        tool_name,
+                        "outside_booking_window",
+                        "Consigo verificar horários para os próximos 90 dias. Para qual dia você quer marcar?",
+                    )
                 if len(arguments.service_ids) > self._settings.scheduling_max_services_per_appointment:
                     raise ValueError("Too many services.")
                 return await self._list_available_slots(

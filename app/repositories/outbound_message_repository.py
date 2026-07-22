@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import OutboundMessage
 from app.schemas.outbound_message import OutboundMessageRegistrationResult
+from app.services.outbound_safety import secure_outbound_text
+from app.services.carlos_response_service import sanitize_carlos_reply
 
 UNIQUE_CONSTRAINT_NAME = "uq_outbound_messages_deduplication_key"
 MAX_STORED_ERROR_LENGTH = 500
@@ -30,7 +32,7 @@ async def enqueue_text_message(
     )
     clean_instance = _require_not_blank(instance, "instance")
     clean_recipient = _validate_recipient(recipient)
-    clean_text = _require_not_blank(text, "text")
+    clean_text = secure_outbound_text(sanitize_carlos_reply(_require_not_blank(text, "text")))
 
     record = OutboundMessage(
         inbound_message_id=inbound_message_id,

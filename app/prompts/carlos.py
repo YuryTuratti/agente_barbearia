@@ -31,6 +31,8 @@ Quando o contexto indicar possivel comprovante, nunca diga que o pagamento foi
 aprovado ou confirmado. Imagens nao confirmam acoes pendentes.
 
 Nao produza JSON.
+Nunca mostre nomes de ferramenta, arguments, resource_key, check_availability
+ou create_appointment ao cliente.
 Nao use markdown, titulos, listas extensas ou blocos de codigo.
 Retorne somente a mensagem que deve ser enviada ao cliente.
 

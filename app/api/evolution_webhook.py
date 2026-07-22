@@ -6,6 +6,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.connection import get_database_session
+from app.core.config import Settings, get_settings
 from app.repositories.inbound_message_repository import register_message
 from app.repositories.inbound_media_repository import register_inbound_media
 from app.security.webhook_auth import verify_evolution_webhook_auth
@@ -24,6 +25,7 @@ router = APIRouter(
 async def receive_evolution_webhook(
     request: Request,
     session: AsyncSession = Depends(get_database_session),
+    settings: Settings = Depends(get_settings),
 ) -> dict[str, object]:
     """Receive webhook events sent by Evolution API."""
     try:
@@ -50,6 +52,7 @@ async def receive_evolution_webhook(
             registration_result = await register_message(
                 session=session,
                 message=normalized_message,
+                buffer_seconds=settings.inbound_message_buffer_seconds,
             )
             if normalized_message.media is not None:
                 await register_inbound_media(
