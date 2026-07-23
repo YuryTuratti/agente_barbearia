@@ -12,13 +12,21 @@ from app.exceptions.handlers import PermanentMessageHandlingError
 from app.exceptions.openai import OpenAIInvalidResponseError, OpenAITemporaryError
 from app.exceptions.scheduling import InvalidPhoneError
 from app.prompts.carlos_scheduling import CARLOS_SCHEDULING_SYSTEM_PROMPT
-from app.repositories.conversation_history_repository import get_recent_conversation
 from app.schemas.conversation import ConversationMessage
 from app.services.carlos_response_service import normalize_carlos_reply
 from app.services.outbound_safety import secure_outbound_text
 from app.services.outbound_safety import OUTSIDE_WINDOW_REPLY
+from app.services.carlos_conversation_context import prepare_carlos_context, record_carlos_reply
 from app.tools.scheduling_definitions import get_scheduling_tool_definitions
+from app.tools.scheduling_definitions import LIST_AVAILABLE_SLOTS_TOOL_NAME
 from app.tools.scheduling_executor import SchedulingToolExecutor
+from app.services.availability_request_guard import (
+    AVAILABILITY_FAILURE_REPLY,
+    PAST_DATE_REPLY,
+    format_available_slots,
+    is_informational_request,
+    validate_availability_request,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,18 +54,27 @@ class CarlosSchedulingService:
             raise PermanentMessageHandlingError(
                 "Inbound message does not have a valid phone."
             ) from error
-        current_text = (message.text or "").strip()
-        if not current_text:
+        if not (message.text or "").strip():
             raise PermanentMessageHandlingError("Inbound text message is empty.")
-
-        async with self._session_factory() as session:
-            history = await get_recent_conversation(
-                session,
-                instance=message.instance,
-                phone=message.phone or "",
-                current_inbound_message_id=message.id,
-                limit=self._settings.openai_history_limit,
-            )
+        now_utc = self._clock.now_utc()
+        context = await prepare_carlos_context(
+            self._session_factory, message, self._settings, now_utc=now_utc
+        )
+        history, current_text = context.history, context.current_text
+        local_today = now_utc.astimezone(
+            get_timezone(self._settings.barbershop_timezone)
+        ).date()
+        availability_decision = validate_availability_request(
+            context.state,
+            today=local_today,
+            max_days_ahead=self._settings.scheduling_max_days_ahead,
+        )
+        if (
+            context.state.get("scheduling_intent")
+            and not is_informational_request(current_text)
+            and not availability_decision.can_check
+        ):
+            return availability_decision.safe_reply or AVAILABILITY_FAILURE_REPLY
 
         input_items: list[object] = [
             *_conversation_to_input(history),
@@ -66,7 +83,7 @@ class CarlosSchedulingService:
                 "content": current_text,
             },
         ]
-        instructions = self._build_instructions()
+        instructions = f"{self._build_instructions()}\n\n{context.instructions_context}"
         tools = get_scheduling_tool_definitions()
 
         for round_index in range(self._settings.openai_max_tool_rounds + 1):
@@ -80,10 +97,9 @@ class CarlosSchedulingService:
             if not turn.tool_calls:
                 if not turn.output_text:
                     raise OpenAIInvalidResponseError("OpenAI returned an empty response.")
-                local_today = self._clock.now_utc().astimezone(
-                    get_timezone(self._settings.barbershop_timezone)
-                ).date()
-                return normalize_carlos_reply(
+                if _only_promises_availability(turn.output_text):
+                    return AVAILABILITY_FAILURE_REPLY
+                reply = normalize_carlos_reply(
                     secure_outbound_text(
                         turn.output_text,
                         local_today=local_today,
@@ -91,21 +107,46 @@ class CarlosSchedulingService:
                     ),
                     max_characters=self._settings.openai_max_reply_characters,
                 )
+                await record_carlos_reply(self._session_factory, message, reply)
+                return reply
             if round_index >= self._settings.openai_max_tool_rounds:
                 raise OpenAITemporaryError("OpenAI tool execution limit reached.")
 
             tool_call = turn.tool_calls[0]
+            if tool_call.name == LIST_AVAILABLE_SLOTS_TOOL_NAME:
+                decision = validate_availability_request(
+                    context.state,
+                    today=local_today,
+                    max_days_ahead=self._settings.scheduling_max_days_ahead,
+                )
+                if not decision.can_check:
+                    return decision.safe_reply or AVAILABILITY_FAILURE_REPLY
             logger.info(
                 "Executing Carlos scheduling tool: inbound_record_id=%s tool_name=%s round=%s",
                 message.id,
                 tool_call.name,
                 round_index + 1,
             )
-            tool_result = await self._tool_executor.execute(
-                tool_name=tool_call.name,
-                arguments_json=tool_call.arguments,
-                message=message,
-            )
+            try:
+                tool_result = await self._tool_executor.execute(
+                    tool_name=tool_call.name,
+                    arguments_json=tool_call.arguments,
+                    message=message,
+                )
+            except Exception:
+                if tool_call.name == LIST_AVAILABLE_SLOTS_TOOL_NAME:
+                    logger.exception("Availability tool failed before returning a result.")
+                    return AVAILABILITY_FAILURE_REPLY
+                raise
+            if tool_call.name == LIST_AVAILABLE_SLOTS_TOOL_NAME:
+                if not tool_result.ok:
+                    if tool_result.error and tool_result.error.code == "outside_booking_window":
+                        return OUTSIDE_WINDOW_REPLY
+                    if tool_result.error and tool_result.error.code == "date_in_past":
+                        return PAST_DATE_REPLY
+                    return AVAILABILITY_FAILURE_REPLY
+                slots = list((tool_result.data or {}).get("slots", []))
+                return format_available_slots(context.state, slots)
             if (
                 not tool_result.ok
                 and tool_result.error is not None
@@ -147,3 +188,10 @@ def _conversation_to_input(messages: list[ConversationMessage]) -> list[dict[str
         }
         for message in messages
     ]
+
+
+def _only_promises_availability(text: str) -> bool:
+    lowered = text.lower()
+    return any(phrase in lowered for phrase in (
+        "vou verificar", "vou consultar", "já verifico", "ja verifico",
+    ))

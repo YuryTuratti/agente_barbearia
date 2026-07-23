@@ -1,3 +1,4 @@
+from datetime import datetime
 from sqlalchemy import func, literal, select, union_all
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +13,7 @@ async def get_recent_conversation(
     phone: str,
     current_inbound_message_id: str,
     limit: int,
+    exclude_process_after_at: datetime | None = None,
 ) -> list[ConversationMessage]:
     inbound = (
         select(
@@ -29,6 +31,11 @@ async def get_recent_conversation(
             func.trim(InboundMessage.text) != "",
         )
     )
+    if exclude_process_after_at is not None:
+        inbound = inbound.where(
+            (InboundMessage.process_after_at.is_(None))
+            | (InboundMessage.process_after_at != exclude_process_after_at)
+        )
     inbound_audio = (
         select(
             literal("user").label("role"),

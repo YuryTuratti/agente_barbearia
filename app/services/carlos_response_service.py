@@ -10,10 +10,10 @@ from app.database.models import InboundMessage
 from app.exceptions.handlers import PermanentMessageHandlingError
 from app.exceptions.openai import OpenAIInvalidResponseError
 from app.prompts.carlos import CARLOS_SYSTEM_PROMPT
-from app.repositories.conversation_history_repository import get_recent_conversation
 from app.schemas.conversation import ConversationMessage
 from app.domain.scheduling import get_timezone
 from app.services.outbound_safety import secure_outbound_text
+from app.services.carlos_conversation_context import prepare_carlos_context, record_carlos_reply
 
 logger = logging.getLogger(__name__)
 
@@ -41,18 +41,10 @@ class CarlosResponseService:
     async def generate_reply(self, message: InboundMessage) -> str:
         if not message.phone:
             raise PermanentMessageHandlingError("Inbound message does not have a phone.")
-        current_text = (message.text or "").strip()
-        if not current_text:
+        if not (message.text or "").strip():
             raise PermanentMessageHandlingError("Inbound text message is empty.")
-
-        async with self._session_factory() as session:
-            history = await get_recent_conversation(
-                session,
-                instance=message.instance,
-                phone=message.phone,
-                current_inbound_message_id=message.id,
-                limit=self._settings.openai_history_limit,
-            )
+        context = await prepare_carlos_context(self._session_factory, message, self._settings)
+        history, current_text = context.history, context.current_text
 
         conversation = [
             *history,
@@ -73,14 +65,14 @@ class CarlosResponseService:
             len(history),
         )
         result = await self._openai_client.generate_text(
-            instructions=CARLOS_SYSTEM_PROMPT,
+            instructions=f"{CARLOS_SYSTEM_PROMPT}\n\n{context.instructions_context}",
             messages=conversation,
         )
         if not (result.text or "").replace("\x00", "").strip():
             raise OpenAIInvalidResponseError("OpenAI returned an empty response.")
 
         local_today = datetime_now_local_date(self._settings)
-        return normalize_carlos_reply(
+        reply = normalize_carlos_reply(
             secure_outbound_text(
                 result.text,
                 local_today=local_today,
@@ -88,6 +80,8 @@ class CarlosResponseService:
             ),
             max_characters=self._settings.openai_max_reply_characters,
         )
+        await record_carlos_reply(self._session_factory, message, reply)
+        return reply
 
     async def close(self) -> None:
         await self._openai_client.close()

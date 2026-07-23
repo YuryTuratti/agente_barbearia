@@ -92,7 +92,13 @@ class SchedulingToolExecutor:
                 today = self._clock.now_utc().astimezone(
                     get_timezone(self._settings.barbershop_timezone)
                 ).date()
-                if not today <= arguments.local_date <= today + timedelta(
+                if arguments.local_date < today:
+                    return _error(
+                        tool_name,
+                        "date_in_past",
+                        "Essa data já passou. Para qual dia você quer marcar?",
+                    )
+                if arguments.local_date > today + timedelta(
                     days=self._settings.scheduling_max_days_ahead
                 ):
                     return _error(

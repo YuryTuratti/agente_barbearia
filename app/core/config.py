@@ -55,6 +55,8 @@ class Settings(BaseSettings):
     openai_timeout_seconds: float = 30.0
     openai_max_output_tokens: int = 300
     openai_history_limit: int = 12
+    carlos_history_message_limit: int = 40
+    carlos_conversation_summary_enabled: bool = True
     openai_max_reply_characters: int = 1200
     openai_max_tool_rounds: int = 5
     llm_provider: str = "openai"
@@ -120,6 +122,7 @@ class Settings(BaseSettings):
         "openai_timeout_seconds",
         "openai_max_output_tokens",
         "openai_history_limit",
+        "carlos_history_message_limit",
         "openai_max_reply_characters",
         "ollama_timeout_seconds",
         "openai_transcription_timeout_seconds",

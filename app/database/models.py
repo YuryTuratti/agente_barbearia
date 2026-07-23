@@ -91,6 +91,27 @@ class InboundMessage(Base):
     )
 
 
+class CarlosConversationState(Base):
+    __tablename__ = "carlos_conversation_states"
+    __table_args__ = (
+        UniqueConstraint("instance", "phone", name="uq_carlos_state_instance_phone"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_generate_uuid)
+    instance: Mapped[str] = mapped_column(String(120), nullable=False)
+    phone: Mapped[str] = mapped_column(String(32), nullable=False)
+    state: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC), server_default=func.now(),
+    )
+
+
 class OutboundMessage(Base):
     __tablename__ = "outbound_messages"
     __table_args__ = (
